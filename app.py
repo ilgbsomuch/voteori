@@ -2,12 +2,19 @@ from flask import Flask, render_template, request, jsonify, session, g
 import sqlite3
 from datetime import datetime
 import os
+import logging
 
+# Flask setup
 app = Flask(__name__)
 
 # Configuration
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default_secret_key')
-app.config['DEBUG'] = os.getenv('DEBUG', False)
+app.config['DEBUG'] = os.getenv('DEBUG', 'False') == 'True'  # Ensure Debug is False in production
+app.config['DATABASE'] = os.getenv('DATABASE', 'data/votes.db')
+
+# Set up logging for production
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Ensure the data directory exists
 DATA_DIR = 'data'
@@ -88,31 +95,37 @@ def index():
 @app.route('/vote', methods=['POST'])
 def vote():
     """Handle the vote submission."""
-    session_id = session.get('session_id')  # Retrieve session ID (auto handled by Flask)
+    try:
+        session_id = session.get('session_id')  # Retrieve session ID (auto handled by Flask)
+        
+        if not session_id:
+            session_id = str(datetime.now().timestamp())  # Generate a new session ID if not set
+            session['session_id'] = session_id  # Save session ID in session
+
+        if not can_vote(session_id):
+            return jsonify({'error': 'You can only vote 3 times per day.'}), 403
+
+        vote_type = request.json.get('vote_type')
+        if vote_type not in ['upvote', 'downvote']:
+            return jsonify({'error': 'Invalid vote type.'}), 400
+
+        db = get_db()
+        cursor = db.cursor()
+        if vote_type == 'upvote':
+            cursor.execute('UPDATE votes SET upvotes = upvotes + 1')
+        elif vote_type == 'downvote':
+            cursor.execute('UPDATE votes SET downvotes = downvotes + 1')
+        cursor.execute('INSERT INTO user_votes (session_id, vote_time) VALUES (?, ?)',
+                    (session_id, datetime.now()))
+        db.commit()
+
+        upvotes, downvotes = get_vote_counts()
+        return jsonify({'upvotes': upvotes, 'downvotes': downvotes})
     
-    if not session_id:
-        session_id = str(datetime.now().timestamp())  # Generate a new session ID if not set
-        session['session_id'] = session_id  # Save session ID in session
-
-    if not can_vote(session_id):
-        return jsonify({'error': 'You can only vote 3 times per day.'}), 403
-
-    vote_type = request.json.get('vote_type')
-    if vote_type not in ['upvote', 'downvote']:
-        return jsonify({'error': 'Invalid vote type.'}), 400
-
-    db = get_db()
-    cursor = db.cursor()
-    if vote_type == 'upvote':
-        cursor.execute('UPDATE votes SET upvotes = upvotes + 1')
-    elif vote_type == 'downvote':
-        cursor.execute('UPDATE votes SET downvotes = downvotes + 1')
-    cursor.execute('INSERT INTO user_votes (session_id, vote_time) VALUES (?, ?)',
-                   (session_id, datetime.now()))
-    db.commit()
-
-    upvotes, downvotes = get_vote_counts()
-    return jsonify({'upvotes': upvotes, 'downvotes': downvotes})
+    except Exception as e:
+        # Log the error for debugging purposes
+        logger.error(f"Error during voting: {e}", exc_info=True)
+        return jsonify({'error': 'An error occurred during voting.'}), 500
 
 if __name__ == '__main__':
     init_db()  # Initialize the database when the app starts
