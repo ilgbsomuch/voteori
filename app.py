@@ -34,6 +34,7 @@ def init_db():
     with app.app_context():
         db = get_db()
         cursor = db.cursor()
+
         # Create table for vote count
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS votes (
@@ -42,6 +43,7 @@ def init_db():
                 downvotes INTEGER DEFAULT 0
             )
         ''')
+
         # Create table for user votes (session-based)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_votes (
@@ -56,7 +58,7 @@ def init_db():
         columns = cursor.fetchall()
         if not any(column[1] == "session_id" for column in columns):
             cursor.execute('ALTER TABLE user_votes ADD COLUMN session_id TEXT')
-        
+
         # Insert initial vote count if table is empty
         cursor.execute('SELECT COUNT(*) FROM votes')
         if cursor.fetchone()[0] == 0:
@@ -75,8 +77,17 @@ def get_vote_counts():
     """Fetch the current vote counts from the database."""
     db = get_db()
     cursor = db.cursor()
-    cursor.execute('SELECT upvotes, downvotes FROM votes LIMIT 1')
-    return cursor.fetchone()
+    try:
+        cursor.execute('SELECT upvotes, downvotes FROM votes LIMIT 1')
+        result = cursor.fetchone()
+        if result:
+            return result
+        else:
+            logger.error("No vote data found in the 'votes' table.")
+            return (0, 0)  # Return default values if no data found
+    except Exception as e:
+        logger.error(f"Error fetching vote counts: {e}", exc_info=True)
+        return (0, 0)  # Return default values on error
 
 # Helper to check if the user can vote (max 3 votes per day)
 def can_vote(session_id):
@@ -95,8 +106,12 @@ def can_vote(session_id):
 @app.route('/')
 def index():
     """Render the homepage with the current vote counts."""
-    upvotes, downvotes = get_vote_counts()
-    return render_template('index.html', upvotes=upvotes, downvotes=downvotes)
+    try:
+        upvotes, downvotes = get_vote_counts()
+        return render_template('index.html', upvotes=upvotes, downvotes=downvotes)
+    except Exception as e:
+        logger.error(f"Error loading homepage: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to load vote counts.'}), 500
 
 # Route to handle voting
 @app.route('/vote', methods=['POST'])
@@ -135,5 +150,8 @@ def vote():
         return jsonify({'error': 'An error occurred during voting.'}), 500
 
 if __name__ == '__main__':
-    init_db()  # Initialize the database when the app starts
+    # Ensure the database is initialized when the app starts
+    if not os.path.exists(DATABASE):
+        logger.info("Database not found, initializing...")
+        init_db()
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
