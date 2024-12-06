@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, session, g
 import sqlite3
 from datetime import datetime
 import os
@@ -16,12 +16,14 @@ DATABASE = os.path.join(DATA_DIR, 'votes.db')
 
 # Database helper functions
 def get_db():
+    """Return a database connection."""
     db = getattr(g, '_database', None)
     if db is None:
         db = g._database = sqlite3.connect(DATABASE)
     return db
 
 def init_db():
+    """Initialize the database and create tables if necessary."""
     with app.app_context():
         db = get_db()
         cursor = db.cursor()
@@ -33,7 +35,7 @@ def init_db():
                 downvotes INTEGER DEFAULT 0
             )
         ''')
-        # Create table for user votes (session-based, no need for IP-based now)
+        # Create table for user votes (session-based)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_votes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,18 +51,20 @@ def init_db():
 
 @app.teardown_appcontext
 def close_connection(exception):
+    """Close the database connection after each request."""
     db = getattr(g, '_database', None)
     if db is not None:
         db.close()
 
 # Helper to get current vote counts
 def get_vote_counts():
+    """Fetch the current vote counts from the database."""
     db = get_db()
     cursor = db.cursor()
     cursor.execute('SELECT upvotes, downvotes FROM votes LIMIT 1')
     return cursor.fetchone()
 
-# Helper to check if user can vote
+# Helper to check if the user can vote (max 3 votes per day)
 def can_vote(session_id):
     db = get_db()
     cursor = db.cursor()
@@ -76,17 +80,19 @@ def can_vote(session_id):
 # Route for the homepage
 @app.route('/')
 def index():
+    """Render the homepage with the current vote counts."""
     upvotes, downvotes = get_vote_counts()
     return render_template('index.html', upvotes=upvotes, downvotes=downvotes)
 
 # Route to handle voting
 @app.route('/vote', methods=['POST'])
 def vote():
+    """Handle the vote submission."""
     session_id = session.get('session_id')  # Retrieve session ID (auto handled by Flask)
     
     if not session_id:
-        session_id = str(datetime.now().timestamp())  # Generate a new session ID
-        session['session_id'] = session_id
+        session_id = str(datetime.now().timestamp())  # Generate a new session ID if not set
+        session['session_id'] = session_id  # Save session ID in session
 
     if not can_vote(session_id):
         return jsonify({'error': 'You can only vote 3 times per day.'}), 403
@@ -104,9 +110,10 @@ def vote():
     cursor.execute('INSERT INTO user_votes (session_id, vote_time) VALUES (?, ?)',
                    (session_id, datetime.now()))
     db.commit()
+
     upvotes, downvotes = get_vote_counts()
     return jsonify({'upvotes': upvotes, 'downvotes': downvotes})
 
 if __name__ == '__main__':
-    init_db()
+    init_db()  # Initialize the database when the app starts
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
