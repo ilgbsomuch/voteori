@@ -50,6 +50,13 @@ def init_db():
                 vote_time TIMESTAMP
             )
         ''')
+
+        # Check if the session_id column exists, and add it if missing
+        cursor.execute("PRAGMA table_info(user_votes);")
+        columns = cursor.fetchall()
+        if not any(column[1] == "session_id" for column in columns):
+            cursor.execute('ALTER TABLE user_votes ADD COLUMN session_id TEXT')
+        
         # Insert initial vote count if table is empty
         cursor.execute('SELECT COUNT(*) FROM votes')
         if cursor.fetchone()[0] == 0:
