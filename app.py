@@ -5,8 +5,8 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# Configuration
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default_secret_key')
+# Configuration: Use environment variables for sensitive data
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default_secret_key')  # Fetch SECRET_KEY from environment variable
 app.config['DEBUG'] = os.getenv('DEBUG', False)
 
 # Ensure the data directory exists
