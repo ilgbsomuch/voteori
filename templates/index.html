@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vote Ori</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        async function sendVote(voteType) {
+            try {
+                const response = await fetch('/vote', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ vote_type: voteType }),
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert(error.error);
+                } else {
+                    const data = await response.json();
+                    document.getElementById('upvotes').innerText = data.upvotes;
+                    document.getElementById('downvotes').innerText = data.downvotes;
+                }
+            } catch (error) {
+                alert('An error occurred. Please try again.');
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Ori's Social Credit</h1>
+    <p>Upvotes: <span id="upvotes">{{ upvotes }}</span></p>
+    <p>Downvotes: <span id="downvotes">{{ downvotes }}</span></p>
+    <button onclick="sendVote('upvote')">Upvote</button>
+    <button onclick="sendVote('downvote')">Downvote</button>
+</body>
+</html>

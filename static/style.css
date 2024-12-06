@@ -1,0 +1,85 @@
+/* General reset for consistent styling */
+body, h1, p, button {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    box-sizing: border-box;
+}
+
+/* Body styling */
+body {
+    background-color: #1a1a1a; /* Near-black background */
+    color: #ffffff; /* White text */
+    text-align: center;
+    padding: 20px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Heading */
+h1 {
+    font-size: 1.8rem; /* Large font size for mobile */
+    margin-bottom: 20px;
+}
+
+/* Paragraph for vote counts */
+p {
+    font-size: 1.2rem; /* Slightly larger text for clarity */
+    margin: 10px 0;
+}
+
+/* Buttons styling */
+button {
+    font-size: 1rem;
+    padding: 10px 20px;
+    margin: 10px;
+    border: none;
+    border-radius: 5px;
+    color: #ffffff; /* White text */
+    cursor: pointer;
+    transition: transform 0.2s, background-color 0.2s;
+    width: 150px; /* Fixed width for equal-sized buttons */
+    text-align: center; /* Center text */
+    display: inline-block;
+}
+
+/* Green button for upvotes */
+button[onclick*="upvote"] {
+    background-color: #28a745; /* Green background */
+}
+
+/* Red button for downvotes */
+button[onclick*="downvote"] {
+    background-color: #dc3545; /* Red background */
+}
+
+/* Button hover effects */
+button:hover {
+    transform: scale(1.1); /* Slight zoom effect */
+    opacity: 0.9; /* Slight dimming effect */
+}
+
+/* Button focus effects */
+button:focus {
+    outline: 2px solid #ffffff; /* Highlight buttons when focused */
+}
+
+/* Larger screens (tablet and above) */
+@media (min-width: 768px) {
+    h1 {
+        font-size: 2.5rem; /* Bigger heading on larger screens */
+    }
+
+    p {
+        font-size: 1.5rem; /* Larger vote count text */
+    }
+
+    button {
+        font-size: 1.2rem;
+        padding: 15px 30px;
+        width: 180px; /* Slightly wider buttons on larger screens */
+    }
+}

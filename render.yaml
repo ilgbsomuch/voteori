@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: voteori
+    env: python
+    buildCommand: ""
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SECRET_KEY
+        value: "your_secret_key_here"
+    disk:
+      size: 1GB
