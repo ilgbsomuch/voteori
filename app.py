@@ -1,12 +1,12 @@
-import os
-from flask import Flask, render_template, request, jsonify, g
+from flask import Flask, render_template, request, jsonify, session
 import sqlite3
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 
-# Configuration: Use environment variables for sensitive data
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default_secret_key')  # Fetch SECRET_KEY from environment variable
+# Configuration
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default_secret_key')
 app.config['DEBUG'] = os.getenv('DEBUG', False)
 
 # Ensure the data directory exists
@@ -33,11 +33,11 @@ def init_db():
                 downvotes INTEGER DEFAULT 0
             )
         ''')
-        # Create table for user votes (IP-based)
+        # Create table for user votes (session-based, no need for IP-based now)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_votes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ip_address TEXT,
+                session_id TEXT,
                 vote_time TIMESTAMP
             )
         ''')
@@ -61,14 +61,14 @@ def get_vote_counts():
     return cursor.fetchone()
 
 # Helper to check if user can vote
-def can_vote(ip_address):
+def can_vote(session_id):
     db = get_db()
     cursor = db.cursor()
     today = datetime.now().date()
     start_of_today = datetime.combine(today, datetime.min.time())
     cursor.execute(
-        'SELECT COUNT(*) FROM user_votes WHERE ip_address = ? AND vote_time >= ?',
-        (ip_address, start_of_today)
+        'SELECT COUNT(*) FROM user_votes WHERE session_id = ? AND vote_time >= ?',
+        (session_id, start_of_today)
     )
     vote_count = cursor.fetchone()[0]
     return vote_count < 3
@@ -82,8 +82,13 @@ def index():
 # Route to handle voting
 @app.route('/vote', methods=['POST'])
 def vote():
-    ip_address = request.remote_addr
-    if not can_vote(ip_address):
+    session_id = session.get('session_id')  # Retrieve session ID (auto handled by Flask)
+    
+    if not session_id:
+        session_id = str(datetime.now().timestamp())  # Generate a new session ID
+        session['session_id'] = session_id
+
+    if not can_vote(session_id):
         return jsonify({'error': 'You can only vote 3 times per day.'}), 403
 
     vote_type = request.json.get('vote_type')
@@ -96,8 +101,8 @@ def vote():
         cursor.execute('UPDATE votes SET upvotes = upvotes + 1')
     elif vote_type == 'downvote':
         cursor.execute('UPDATE votes SET downvotes = downvotes + 1')
-    cursor.execute('INSERT INTO user_votes (ip_address, vote_time) VALUES (?, ?)',
-                   (ip_address, datetime.now()))
+    cursor.execute('INSERT INTO user_votes (session_id, vote_time) VALUES (?, ?)',
+                   (session_id, datetime.now()))
     db.commit()
     upvotes, downvotes = get_vote_counts()
     return jsonify({'upvotes': upvotes, 'downvotes': downvotes})
